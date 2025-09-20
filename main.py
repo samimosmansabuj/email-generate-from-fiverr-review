@@ -1,0 +1,176 @@
+from bs4 import BeautifulSoup
+from email_validation import EmailGenerate
+import time
+import pandas as pd
+import os
+
+def load_csv_file(csv_file):
+    if os.path.exists(csv_file):
+        df = pd.read_csv(csv_file)
+    else:
+        df = pd.DataFrame(columns=["username", "email", "repeated", "country", "price_tag", "proficiency", "time_text", "review_description", "count"])
+        df.to_csv(csv_file, index=False)
+    return df
+
+def scrapping_all_reviews(html):
+    soup = BeautifulSoup(html, "html.parser")
+    all_reviews = soup.find_all("li", class_="review-item-component")
+
+    total_reviews = len(all_reviews)
+    print("Total reviews found:", total_reviews)
+    return all_reviews
+
+def safe_get_text(parent, tag, class_name=None):
+    if parent:
+        element = parent.find(tag, class_=class_name) if class_name else parent.find(tag)
+        if element:
+            return element.get_text(strip=True)
+    return "N/A"
+
+def get_review_data(review) -> dict:
+    data = {}
+    data["username"] = safe_get_text(review, "p", "_66nk381cr")
+    data["repeated"] = safe_get_text(review.find("div", class_="_66nk38109"), "p")
+    data["country"] = safe_get_text(review.find("div", class_="country"), "p")
+    data["time_text"] = safe_get_text(review, "time")
+    data["review_description"] = safe_get_text(review.find("div", class_="reliable-review-description review-description"), "p")
+    price_tag = review.find("p", string=lambda text: text and "US$" in text)
+    data["price_tag"] = price_tag.get_text(strip=True) if price_tag else "N/A"
+    
+    return data
+
+def check_username_for_exist(username, load_df) -> bool:
+    try:
+        if username in load_df["username"].str.strip().values:
+            load_df.loc[load_df["username"] == username, "count"] += 1
+            return True
+        else:
+            return False
+    except:
+        return False
+
+def get_generate_email(username: str):
+    email = f"{username}@gmail.com"
+    email_validation = EmailGenerate(email)
+    status, msg = email_validation.full_email_check()
+    if status:
+        print(msg)
+        return email
+    else:
+        print(msg)
+        return None
+
+
+def get_price_proficiency(price_str):
+    price_str = price_str.replace(",", "")
+    
+    print(price_str)
+    
+    if "Up to" in price_str:
+        price = float(price_str.split("US$")[1])
+    elif "and above" in price_str:
+        price = float(price_str.split("US$")[1].split()[0])
+    else:
+        price = float(price_str.split("US$")[1].split("-")[0])
+
+    # mapping
+    if price <= 50:
+        return "Very Low"
+    elif price <= 200:
+        return "Low"
+    elif price <= 600:
+        return "Medium"
+    elif price <= 1000:
+        return "High"
+    elif price <= 2000:
+        return "Very High"
+    elif price <= 4000:
+        return "Important"
+    else:
+        return "Most Important"
+
+def data_saved(data: dict, load_df, success_count: int, failed_count: int):
+    try:
+        load_df.loc[len(load_df)] = [
+            data["username"],
+            data["email"],
+            data["repeated"],
+            data["country"],
+            data["price_tag"],
+            get_price_proficiency(data["price_tag"]),
+            data["time_text"],
+            data["review_description"],
+            0
+        ]
+        success_count += 1
+    except Exception as e:
+        print("Get issues add new row!: ", str(e))
+        failed_count += 1
+
+def has_email(data):
+    return "email" in data and bool(data["email"])
+
+def main(html, csv_file):
+    load_df = load_csv_file(csv_file)
+
+    success_count = 0
+    not_found_count = 0
+    duplicated_count = 0
+    failed_count = 0
+    
+    for i, review in enumerate(scrapping_all_reviews(html), start=1):
+        data = get_review_data(review)
+        print(f"---------- Start For Review #{i}: {data["username"]}----------")
+        
+        # CSV/Data Frame------------------------------------------------------
+        username_check = check_username_for_exist(data["username"], load_df)
+        if username_check:
+            print("❌ username already Exist!")
+            duplicated_count += 1
+        else:
+            # Email Generate & Check Email Valid or Not-----------------------
+            generate_email = get_generate_email(data["username"])
+            if generate_email is None:
+                print("❌ Get not Email by This username!")
+                not_found_count += 1 
+            else:
+                data["email"] = generate_email
+        
+                # Data Save-----------------------------------------------------------
+                if has_email(data):
+                    data_saved(data, load_df, success_count, failed_count)
+                else:
+                    not_found_count += 1 
+        
+        print(f"---------- End For Review #{i}: {data["username"]}----------")
+        print("=============================================================")
+        time.sleep(2)
+        
+    # ============End For Loop==============
+    
+    # CSV/Excel File Saved-------------
+    load_df.to_csv(csv_file, index=False, encoding="utf-8-sig")
+    
+    return {
+        "success_count": success_count,
+        "not_found_count": not_found_count,
+        "duplicated_count": duplicated_count,
+        "failed_count": failed_count,
+    }
+
+
+
+if __name__ == "__main__":
+    html = open("template/main2.html", encoding="utf-8")
+    csv_file = "file/fiver_reviews.csv"
+    response = main(html, csv_file)
+    
+    print("✅ Data saved to", csv_file)
+    print("✅ Successfull: ", response["success_count"])
+    print("✅ Not Found Email: ", response["not_found_count"])
+    print("✅ Duplicated: ", response["duplicated_count"])
+    print("✅ Failed: ", response["failed_count"])
+
+
+
+
