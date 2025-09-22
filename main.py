@@ -1,14 +1,18 @@
 from bs4 import BeautifulSoup
 from email_validation import EmailGenerate
+from dotenv import load_dotenv
 import time
 import pandas as pd
+
+load_dotenv()
 import os
+
 
 def load_csv_file(csv_file):
     if os.path.exists(csv_file):
         df = pd.read_csv(csv_file)
     else:
-        df = pd.DataFrame(columns=["username", "email", "repeated", "country", "price_tag", "proficiency", "time_text", "review_description", "count"])
+        df = pd.DataFrame(columns=["username", "email", "repeated", "country", "price_tag", "proficiency", "time_text", "review_description", "count", "category"])
         df.to_csv(csv_file, index=False)
     return df
 
@@ -60,7 +64,6 @@ def get_generate_email(username: str):
         print(msg)
         return None
 
-
 def get_price_proficiency(price_str):
     price_str = price_str.replace(",", "")
     
@@ -90,6 +93,7 @@ def get_price_proficiency(price_str):
         return "Most Important"
 
 def data_saved(data: dict, load_df, success_count: int, failed_count: int):
+    category = os.environ.get("category")
     try:
         load_df.loc[len(load_df)] = [
             data["username"],
@@ -100,7 +104,8 @@ def data_saved(data: dict, load_df, success_count: int, failed_count: int):
             get_price_proficiency(data["price_tag"]),
             data["time_text"],
             data["review_description"],
-            0
+            0,
+            category
         ]
         success_count += 1
     except Exception as e:
@@ -145,7 +150,7 @@ def main(html, csv_file):
         print(f"---------- End For Review #{i}: {data["username"]}----------")
         print("=============================================================")
         time.sleep(2)
-        
+  
     # ============End For Loop==============
     
     # CSV/Excel File Saved-------------
@@ -161,8 +166,15 @@ def main(html, csv_file):
 
 
 if __name__ == "__main__":
-    html = open("template/main2.html", encoding="utf-8")
-    csv_file = "file/fiver_reviews.csv"
+    html_path = os.environ.get("html_template")
+    csv_file = os.environ.get("csv_file")
+    
+    if not html_path or not csv_file:
+        raise SystemExit("Missing one or more env vars: html_template, csv_file, category")
+
+    with open(html_path, "rb") as f:
+        html_bytes = f.read()
+    html = html_bytes
     response = main(html, csv_file)
     
     print("✅ Data saved to", csv_file)
