@@ -16,9 +16,12 @@ def load_csv_file(csv_file):
         df.to_csv(csv_file, index=False)
     return df
 
-def scrapping_all_reviews(html):
+def scrapping_all_reviews(html, type=None):
     soup = BeautifulSoup(html, "html.parser")
-    all_reviews = soup.find_all("li", class_="review-item-component")
+    if type and type.lower() == "profile":
+        all_reviews = soup.find_all("span", class_="freelancer-review-item-wrapper")
+    else:
+        all_reviews = soup.find_all("li", class_="review-item-component")
 
     total_reviews = len(all_reviews)
     print("Total reviews found:", total_reviews)
@@ -31,15 +34,24 @@ def safe_get_text(parent, tag, class_name=None):
             return element.get_text(strip=True)
     return "N/A"
 
-def get_review_data(review) -> dict:
+def get_review_data(review, type=None) -> dict:
     data = {}
-    data["username"] = safe_get_text(review, "p", "_66nk381cr")
-    data["repeated"] = safe_get_text(review.find("div", class_="_66nk38109"), "p")
-    data["country"] = safe_get_text(review.find("div", class_="country"), "p")
-    data["time_text"] = safe_get_text(review, "time")
-    data["review_description"] = safe_get_text(review.find("div", class_="reliable-review-description review-description"), "p")
-    price_tag = review.find("p", string=lambda text: text and "US$" in text)
-    data["price_tag"] = price_tag.get_text(strip=True) if price_tag else "N/A"
+    if type and type.lower() == "profile":
+        data["username"] = safe_get_text(review, "p", "l6pj4a1eb")
+        data["repeated"] = safe_get_text(review.find("div", class_="l6pj4a11o"), "p")
+        data["country"] = safe_get_text(review.find("div", class_="country"), "p")
+        data["time_text"] = safe_get_text(review, "time")
+        data["review_description"] = safe_get_text(review.find("div", class_="reliable-review-description review-description"), "p")
+        price_tag = review.find("p", string=lambda text: text and "US$" in text)
+        data["price_tag"] = price_tag.get_text(strip=True) if price_tag else "N/A"
+    else:
+        data["username"] = safe_get_text(review, "p", "_66nk381cr")
+        data["repeated"] = safe_get_text(review.find("div", class_="_66nk38109"), "p")
+        data["country"] = safe_get_text(review.find("div", class_="country"), "p")
+        data["time_text"] = safe_get_text(review, "time")
+        data["review_description"] = safe_get_text(review.find("div", class_="reliable-review-description review-description"), "p")
+        price_tag = review.find("p", string=lambda text: text and "US$" in text)
+        data["price_tag"] = price_tag.get_text(strip=True) if price_tag else "N/A"
     
     return data
 
@@ -101,7 +113,7 @@ def data_saved(data: dict, load_df, success_count: int, failed_count: int):
             data["repeated"],
             data["country"],
             data["price_tag"],
-            get_price_proficiency(data["price_tag"]),
+            get_price_proficiency(data["price_tag"]) if data["price_tag"] != "N/A" else "Medium",
             data["time_text"],
             0,
             category,
@@ -119,16 +131,20 @@ def has_email(data):
 
 def main(html, csv_file):
     load_df = load_csv_file(csv_file)
+    review_type = os.environ.get("review_type", None)
 
     success_count = 0
     not_found_count = 0
     duplicated_count = 0
     failed_count = 0
     
-    for i, review in enumerate(scrapping_all_reviews(html), start=1):
-        data = get_review_data(review)
+    reviews = scrapping_all_reviews(html, review_type)
+
+    for i, review in enumerate(reviews, start=1):
+        data = get_review_data(review, review_type)
+        # data = get_review_data(review)
         print(f"---------- Start For Review #{i}: {data["username"]}----------")
-        
+                
         # CSV/Data Frame------------------------------------------------------
         username_check = check_username_for_exist(data["username"], load_df)
         if username_check:
@@ -142,7 +158,6 @@ def main(html, csv_file):
                 not_found_count += 1 
             else:
                 data["email"] = generate_email
-        
                 # Data Save-----------------------------------------------------------
                 if has_email(data):
                     success_count, failed_count = data_saved(data, load_df, success_count, failed_count)
