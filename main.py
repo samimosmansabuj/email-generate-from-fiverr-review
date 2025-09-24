@@ -12,7 +12,7 @@ def load_csv_file(csv_file):
     if os.path.exists(csv_file):
         df = pd.read_csv(csv_file)
     else:
-        df = pd.DataFrame(columns=["username", "email", "repeated", "country", "price_tag", "proficiency", "time_text", "review_description", "count", "category"])
+        df = pd.DataFrame(columns=["username", "email", "repeated", "country", "price_tag", "proficiency", "time_text", "count", "category", "review_description"])
         df.to_csv(csv_file, index=False)
     return df
 
@@ -103,14 +103,16 @@ def data_saved(data: dict, load_df, success_count: int, failed_count: int):
             data["price_tag"],
             get_price_proficiency(data["price_tag"]),
             data["time_text"],
-            data["review_description"],
             0,
-            category
+            category,
+            data["review_description"],
         ]
         success_count += 1
     except Exception as e:
         print("Get issues add new row!: ", str(e))
         failed_count += 1
+    
+    return success_count, failed_count
 
 def has_email(data):
     return "email" in data and bool(data["email"])
@@ -143,13 +145,16 @@ def main(html, csv_file):
         
                 # Data Save-----------------------------------------------------------
                 if has_email(data):
-                    data_saved(data, load_df, success_count, failed_count)
+                    success_count, failed_count = data_saved(data, load_df, success_count, failed_count)
                 else:
                     not_found_count += 1 
         
         print(f"---------- End For Review #{i}: {data["username"]}----------")
         print("=============================================================")
         time.sleep(2)
+        
+        # if i > 1:
+        #     break
   
     # ============End For Loop==============
     
