@@ -3,6 +3,7 @@ from email_validation import EmailGenerate
 from dotenv import load_dotenv
 import time
 import pandas as pd
+from utils import *
 
 load_dotenv()
 import os
@@ -132,6 +133,7 @@ def has_email(data):
 def main(html, csv_file):
     load_df = load_csv_file(csv_file)
     review_type = os.environ.get("review_type", None)
+    
 
     success_count = 0
     not_found_count = 0
@@ -152,6 +154,9 @@ def main(html, csv_file):
             duplicated_count += 1
         else:
             # Email Generate & Check Email Valid or Not-----------------------
+            # Wait for 1 Second
+            time.sleep(1)
+            
             generate_email = get_generate_email(data["username"])
             if generate_email is None:
                 print("❌ Get not Email by This username!")
@@ -163,10 +168,13 @@ def main(html, csv_file):
                     success_count, failed_count = data_saved(data, load_df, success_count, failed_count)
                 else:
                     not_found_count += 1 
+            
+            # Wait for 1 Second
+            time.sleep(1)
         
         print(f"---------- End For Review #{i}: {data["username"]}----------")
         print("=============================================================")
-        time.sleep(2)
+        # time.sleep(1)
         
         # if i > 1:
         #     break
@@ -195,13 +203,24 @@ if __name__ == "__main__":
     with open(html_path, "rb") as f:
         html_bytes = f.read()
     html = html_bytes
-    response = main(html, csv_file)
     
-    print("✅ Data saved to", csv_file)
-    print("✅ Successfull: ", response["success_count"])
-    print("✅ Not Found Email: ", response["not_found_count"])
-    print("✅ Duplicated: ", response["duplicated_count"])
-    print("✅ Failed: ", response["failed_count"])
+    
+    url_link = os.environ.get("url_link", None)
+    freelancer_name = os.environ.get("freelancer_name", None)
+    url_check = check_url_and_profile(url_link, freelancer_name)
+    if url_check:
+        print("This Gig/Profile already Scrapping!")
+    else:
+        update_url_csv(url_link, freelancer_name)
+        
+        response = main(html, csv_file)
+        
+        print("✅ Data saved to", csv_file)
+        print("✅ Successfull: ", response["success_count"])
+        print("✅ Not Found Email: ", response["not_found_count"])
+        print("✅ Duplicated: ", response["duplicated_count"])
+        print("✅ Failed: ", response["failed_count"])
+    
 
 
 
