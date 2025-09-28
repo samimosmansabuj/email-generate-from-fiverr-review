@@ -8,6 +8,8 @@ from utils import *
 load_dotenv()
 import os
 
+import re
+
 
 def load_csv_file(csv_file):
     if os.path.exists(csv_file):
@@ -51,9 +53,8 @@ def get_review_data(review, type=None) -> dict:
         data["country"] = safe_get_text(review.find("div", class_="country"), "p")
         data["time_text"] = safe_get_text(review, "time")
         data["review_description"] = safe_get_text(review.find("div", class_="reliable-review-description review-description"), "p")
-        price_tag = review.find("p", string=lambda text: text and "US$" in text)
+        price_tag = review.find("p", string=lambda text: text and "$" in text)
         data["price_tag"] = price_tag.get_text(strip=True) if price_tag else "N/A"
-    
     return data
 
 def check_username_for_exist(username, load_df) -> bool:
@@ -78,18 +79,14 @@ def get_generate_email(username: str):
         return None
 
 def get_price_proficiency(price_str):
-    price_str = price_str.replace(",", "")
+    price_str = price_str.replace(",", "").replace("US$", "").replace("$", "").strip()
+    nums = re.findall(r"\d+(?:\.\d+)?", price_str)
     
-    print(price_str)
+    if not nums:
+        return "Medium"
     
-    if "Up to" in price_str:
-        price = float(price_str.split("US$")[1])
-    elif "and above" in price_str:
-        price = float(price_str.split("US$")[1].split()[0])
-    else:
-        price = float(price_str.split("US$")[1].split("-")[0])
-
-    # mapping
+    price = float(nums[0])
+    
     if price <= 50:
         return "Very Low"
     elif price <= 200:
